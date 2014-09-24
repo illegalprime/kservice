@@ -79,4 +79,24 @@ void PluginTest::loadPlugin()
     QCOMPARE(plugin->objectName(), QStringLiteral("Test Plugin Spy"));
 }
 
+void PluginTest::loadIndex()
+{
+    QElapsedTimer t;
+    QString p = "imageformats";
+    t.start();
+    KPluginInfo::List lst = KPluginTrader::self()->query(p);
+    qDebug() << "Found in " << t.nsecsElapsed() / 1000 << "microsec : " << lst.count() << p;
+
+    p = "kdevplatform/20";
+    t.start();
+    lst = KPluginTrader::self()->query(p);
+    qDebug() << "Found in " << t.nsecsElapsed() / 1000 << "microsec : " << lst.count() << p;
+
+    p = "plasma/dataengine";
+    t.start();
+    lst = KPluginTrader::self()->query(p);
+    qDebug() << "Found in " << t.nsecsElapsed() / 1000 << "microsec : " << lst.count() << p;
+}
+
+
 #include "moc_pluginlocatortest.cpp"

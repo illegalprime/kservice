@@ -29,6 +29,7 @@ public:
     PluginTest() {}
 
 private Q_SLOTS:
+    void loadIndex();
     void findPlugin_data();
     void findPlugin();
     void findSomething();
