@@ -23,6 +23,7 @@
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDirIterator>
+#include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 
 #include <QDebug>
@@ -102,15 +103,57 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
         }
     }
     Q_FOREACH (const QString &plugindir, libraryPaths) {
-        QDirIterator it(plugindir, suffixFilters(), QDir::Files);
-        while (it.hasNext()) {
-            it.next();
-            const QString _f = it.fileInfo().absoluteFilePath();
-            loader.setFileName(_f);
-            const QVariantList argsWithMetaData = QVariantList() << loader.metaData().toVariantMap();
-            KPluginInfo info(argsWithMetaData, _f);
-            if (servicetype.isEmpty() || info.serviceTypes().contains(servicetype)) {
-                lst << info;
+        const QString &_ixfile = plugindir + QStringLiteral("/kpluginindex.json");
+//         qDebug() << "query" << plugindir << _ixfile;
+        QFile indexFile(_ixfile);
+        if (indexFile.exists()) {
+
+            qDebug() << "Indexed!" << _ixfile;
+
+
+            indexFile.open(QIODevice::ReadOnly);
+//             QJsonDocument jdoc = QJsonDocument::fromBinaryData(indexFile.readAll());
+            QJsonDocument jdoc = QJsonDocument::fromJson(indexFile.readAll());
+            indexFile.close();
+    //         qDebug() << "Reading cache :   " << t2.elapsed() << "msec";
+    //         t2.start();
+            QJsonObject obj = jdoc.object();
+            const QVariantMap &mainVm = obj.toVariantMap();
+    //         qDebug() << "Version: " << mainVm["Version"].toString();
+    //         qDebug() << "Timestamp: " << mainVm["Timestamp"].toDouble();
+            const QVariantMap &packagesVm = mainVm["KPlugins"].toMap();
+    //         qDebug() << "decoding:         " << t2.elapsed() << "msec";
+    //         t2.start();
+            //foreach (const QString &pluginname, packagesVm.keys()) {
+            //qDebug() << "keys: " << packagesVm.keys();
+            for(QVariantMap::const_iterator iter = packagesVm.begin(); iter != packagesVm.end(); ++iter) {
+                //qDebug() << iter.key() << iter.value();
+                const QVariantMap &pluginMap = iter.value().toMap();
+                QString libpath = pluginMap["Path"].toString();
+
+                QVariantList pluginArgs;
+                pluginArgs << iter.value().toMap();
+                KPluginInfo info(pluginArgs, libpath);
+                if (!info.isValid()) {
+                    continue;
+                }
+                if (servicetype.isEmpty() || info.serviceTypes().contains(servicetype)) {
+                    //qDebug() << "Yay! : " << info.name();
+                    lst << info;
+                }
+            }
+
+        } else {
+            QDirIterator it(plugindir, suffixFilters(), QDir::Files);
+            while (it.hasNext()) {
+                it.next();
+                const QString _f = it.fileInfo().absoluteFilePath();
+                loader.setFileName(_f);
+                const QVariantList argsWithMetaData = QVariantList() << loader.metaData().toVariantMap();
+                KPluginInfo info(argsWithMetaData, _f);
+                if (servicetype.isEmpty() || info.serviceTypes().contains(servicetype)) {
+                    lst << info;
+                }
             }
         }
     }
