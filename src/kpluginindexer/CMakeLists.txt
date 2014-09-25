@@ -13,6 +13,7 @@ ecm_mark_nongui_executable(kplugin-update-index)
 
 target_link_libraries(kplugin-update-index
     Qt5::Core
+    KF5::CoreAddons
     KF5::ConfigCore
 )
 

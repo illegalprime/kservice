@@ -30,6 +30,7 @@
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPluginLoader>
@@ -37,6 +38,8 @@
 #include <QTextStream>
 
 #include <QDebug>
+
+#include <kpluginmetadata.h>
 
 #include <kdesktopfile.h>
 #include <kconfiggroup.h>
@@ -162,6 +165,8 @@ bool KPluginIndexer::convertDirectory(const QString& dir, const QString& dest)
     vm[QStringLiteral("Version")] = QStringLiteral("1.0");
     vm[QStringLiteral("Timestamp")] = QDateTime::currentMSecsSinceEpoch();
 
+    QJsonArray plugins;
+
     QElapsedTimer t;
     t.start();
 
@@ -172,57 +177,34 @@ bool KPluginIndexer::convertDirectory(const QString& dir, const QString& dest)
         it.next();
         const QString _f = it.fileInfo().absoluteFilePath();
         loader.setFileName(_f);
-        //const QVariantList argsWithMetaData = QVariantList() << loader.metaData().toVariantMap();
-        //qDebug() << argsWithMetaData;
-
-        QVariantMap pluginMap = loader.metaData().toVariantMap();
-        const QString pluginName = it.fileInfo().absoluteFilePath().remove(dir);
-//         qDebug() << "converting: " << pluginName;
-        pluginMap["Path"] = _f;
-        pluginMap["PluginName"] = pluginName;
-        //pluginMap["MetaData"] = loader.metaData().toVariantMap();
-        pluginsVm[pluginName] = pluginMap;
+        const KPluginMetaData &md(loader);
+        QJsonObject obj;
+        obj["FileName"] = _f;
+        obj["KPlugin"] = md.rawData();
+        plugins.insert(i, obj);
         i++;
     }
 
 
+    if (!plugins.count()) {
+        const QFileInfo fi(dest);
+        if (fi.exists()) {
+            QFile f(dest);
+            if (!f.remove()) {
+                qWarning() << "Could not remove stale plugin index file " << dest;
+            }
+        }
+        return true;
+    }
 
-
-//     QDirIterator it(dir,
-//                     QStringList("*.so"),
-//                     QDir::Files,
-//                     QDirIterator::NoIteratorFlags);
-//     qDebug() << "dest";
-//     qDebug() << "package dir:" << dir;
-//     while (it.hasNext()) {
-//         it.next();
-//         const QString _f = it.fileInfo().absoluteFilePath();
-//         const QString _metadata = _f+"/metadata.desktop";
-//         if (QFile::exists(_metadata)) {
-//             QVariantMap pluginMap;
-//             const QString pluginName = it.fileInfo().absoluteFilePath().remove(dir);
-//             qDebug() << "converting: " << pluginName;
-//             pluginMap["Path"] = _f;
-//             pluginMap["PluginName"] = pluginName;
-//             pluginMap["MetaData"] = convert(_metadata);
-//             pluginsVm[pluginName] = pluginMap;
-//         }
-//         //loader.setFileName(_f);
-//         //const QVariantList argsWithMetaData = QVariantList() << loader.metaData().toVariantMap();
-//
-//     }
-    vm[QStringLiteral("KPlugins")] = pluginsVm;
-//     qDebug() << "Iterating " << m_pluginDir << "took" << t.elapsed() << "msec";
     t.start();
-    QJsonObject jo = QJsonObject::fromVariantMap(vm);
     QJsonDocument jdoc;
-    jdoc.setObject(jo);
+    jdoc.setArray(plugins);
 
     QString destfile = dest;
     const QFileInfo fi(dest);
     if (!fi.isAbsolute()) {
         destfile = dir + dest;
-//         qDebug() << "not absolute!" << dir << dest << " !!! -> " << destfile;
     }
     QFile file(destfile);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -230,10 +212,9 @@ bool KPluginIndexer::convertDirectory(const QString& dir, const QString& dest)
         return false;
     }
 
-   file.write(jdoc.toJson());
-    //file.write(jdoc.toBinaryData());
+//     file.write(jdoc.toJson());
+    file.write(jdoc.toBinaryData());
     cout << "Generated " << destfile << " (" << i << " plugins)" << endl;
-    //qDebug() << "Serializing and writing took " << t.elapsed() << "msec";
 
     return true;
 }
