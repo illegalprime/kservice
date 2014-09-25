@@ -21,8 +21,12 @@
 #include "kplugintrader.h"
 #include "ktraderparsetree_p.h"
 
+#include <KPluginMetaData>
+
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDirIterator>
+#include <QElapsedTimer>
+#include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 
@@ -94,6 +98,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     QStringList libraryPaths;
     KPluginInfo::List lst;
 
+    QVector<KPluginMetaData> allMetaData;
     if (QDir::isAbsolutePath(subDirectory)) {
         //qDebug() << "ABSOLUTE path: " << subDirectory;
         libraryPaths << subDirectory;
@@ -102,46 +107,31 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
             libraryPaths << dir + QDir::separator() + subDirectory;
         }
     }
+    QElapsedTimer t2;
+    t2.start();
     Q_FOREACH (const QString &plugindir, libraryPaths) {
         const QString &_ixfile = plugindir + QStringLiteral("/kpluginindex.json");
-//         qDebug() << "query" << plugindir << _ixfile;
         QFile indexFile(_ixfile);
         if (indexFile.exists()) {
-
-            qDebug() << "Indexed!" << _ixfile;
-
-
+            t2.start();
             indexFile.open(QIODevice::ReadOnly);
-//             QJsonDocument jdoc = QJsonDocument::fromBinaryData(indexFile.readAll());
-            QJsonDocument jdoc = QJsonDocument::fromJson(indexFile.readAll());
+            QJsonDocument jdoc = QJsonDocument::fromBinaryData(indexFile.readAll());
+            //QJsonDocument jdoc = QJsonDocument::fromJson(indexFile.readAll());
             indexFile.close();
-    //         qDebug() << "Reading cache :   " << t2.elapsed() << "msec";
-    //         t2.start();
-            QJsonObject obj = jdoc.object();
-            const QVariantMap &mainVm = obj.toVariantMap();
-    //         qDebug() << "Version: " << mainVm["Version"].toString();
-    //         qDebug() << "Timestamp: " << mainVm["Timestamp"].toDouble();
-            const QVariantMap &packagesVm = mainVm["KPlugins"].toMap();
-    //         qDebug() << "decoding:         " << t2.elapsed() << "msec";
-    //         t2.start();
-            //foreach (const QString &pluginname, packagesVm.keys()) {
-            //qDebug() << "keys: " << packagesVm.keys();
-            for(QVariantMap::const_iterator iter = packagesVm.begin(); iter != packagesVm.end(); ++iter) {
-                //qDebug() << iter.key() << iter.value();
-                const QVariantMap &pluginMap = iter.value().toMap();
-                QString libpath = pluginMap["Path"].toString();
+//             qDebug() << "Reading cache :   " << t2.nsecsElapsed()/1000 << "microsec";
+//             t2.start();
 
-                QVariantList pluginArgs;
-                pluginArgs << iter.value().toMap();
-                KPluginInfo info(pluginArgs, libpath);
-                if (!info.isValid()) {
-                    continue;
-                }
-                if (servicetype.isEmpty() || info.serviceTypes().contains(servicetype)) {
-                    //qDebug() << "Yay! : " << info.name();
-                    lst << info;
-                }
+            QJsonArray plugins = jdoc.array();
+//             qDebug() << "decoding:         " << t2.nsecsElapsed()/1000 << "microsec";
+//             t2.start();
+            for (QJsonArray::const_iterator iter = plugins.constBegin(); iter != plugins.constEnd(); ++iter) {
+                const QJsonObject &obj = QJsonValue(*iter).toObject();
+                const QString &pluginFileName = obj.value(QStringLiteral("FileName")).toString();
+                const KPluginMetaData m(obj, pluginFileName);
+                allMetaData.append(m);
             }
+            //qDebug() << "creating KPI::List:" << t2.nsecsElapsed()/1000 << "microsec";
+            qDebug() << "=== Indexed ===" << _ixfile << plugins.count() << t2.nsecsElapsed()/1000 << "microsec";
 
         } else {
             QDirIterator it(plugindir, suffixFilters(), QDir::Files);
@@ -157,6 +147,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
             }
         }
     }
+    lst = KPluginInfo::fromMetaData(allMetaData);
     applyConstraints(lst, constraint);
     return lst;
 }
