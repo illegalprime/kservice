@@ -464,6 +464,9 @@ bool KSycocaPrivate::checkDatabase(BehaviorsIfNotFound ifNotFound)
             } else {
                 //qDebug() << "kded5 registered";
                 kdedRunning = true;
+                if (QStandardPaths::isTestModeEnabled()) {
+                    sycoca.call(QLatin1String("enableTestMode"));
+                }
             }
         } else {
             //qDebug() << "kded5 found";
@@ -479,8 +482,6 @@ bool KSycocaPrivate::checkDatabase(BehaviorsIfNotFound ifNotFound)
                     // is also better separated from the user's kded anyway.
                 }
             }
-            sycoca.call(QLatin1String("enableTestMode"));
-            Q_ASSERT(QDBusReply<bool>(sycoca.call(QLatin1String("isTestModeEnabled"))).value());
         }
 
         //qDebug() << "We have no database.... asking kded to create it";
