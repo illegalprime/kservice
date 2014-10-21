@@ -32,7 +32,7 @@ class QCommandLineParser;
 class KPluginIndexer
 {
 public:
-    KPluginIndexer(QCommandLineParser *parser, const QCommandLineOption &p, const QCommandLineOption &o, const QCommandLineOption &a);
+    KPluginIndexer(QCommandLineParser *parser, const QCommandLineOption &p, const QCommandLineOption &o, const QCommandLineOption &a, const QCommandLineOption &r);
     int runMain();
 
 private:
@@ -40,12 +40,15 @@ private:
     bool convertAll();
     bool convertDirectory(const QString &dir, const QString &dest);
     bool resolveFiles();
+    bool removeAllIndexFiles();
+    bool removeIndex(const QString &dir);
     QStringList findPluginSubDirectories(const QString &dir);
 
     QCommandLineParser *m_parser;
     QCommandLineOption all;
     QCommandLineOption plugindir;
     QCommandLineOption output;
+    QCommandLineOption remove;
     QString m_pluginDir;
     QStringList m_pluginDirectories;
     QString m_outFile;

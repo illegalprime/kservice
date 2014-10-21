@@ -60,11 +60,12 @@ static inline QStringList suffixFilters()
 }
 
 
-KPluginIndexer::KPluginIndexer(QCommandLineParser *parser, const QCommandLineOption &p, const QCommandLineOption &o, const QCommandLineOption &a)
+KPluginIndexer::KPluginIndexer(QCommandLineParser *parser, const QCommandLineOption &p, const QCommandLineOption &o, const QCommandLineOption &a, const QCommandLineOption &r)
     : m_parser(parser),
       all(a),
       plugindir(p),
-      output(o)
+      output(o),
+      remove (r)
 {
 }
 
@@ -79,7 +80,11 @@ int KPluginIndexer::runMain()
         cerr << "Failed to resolve filenames" << m_pluginDir << m_outFile << endl;
         return 1;
     }
-    return convertAll();
+    if (m_parser->isSet(remove)) {
+        return removeAllIndexFiles();
+    } else {
+        return convertAll();
+    }
 }
 
 bool KPluginIndexer::resolveFiles()
@@ -152,6 +157,7 @@ bool KPluginIndexer::convertAll()
     QPluginLoader loader;
     //KPluginInfo::List lst;
     Q_FOREACH (const QString &plugindir, m_pluginDirectories) {
+        removeIndex(plugindir);
         convertDirectory(plugindir, QStringLiteral("kpluginindex.json"));
 //         qDebug() << "Converted " << plugindir << "";
     }
@@ -186,14 +192,9 @@ bool KPluginIndexer::convertDirectory(const QString& dir, const QString& dest)
     }
 
 
-    if (!plugins.count()) {
-        const QFileInfo fi(dest);
-        if (fi.exists()) {
-            QFile f(dest);
-            if (!f.remove()) {
-                qWarning() << "Could not remove stale plugin index file " << dest;
-            }
-        }
+    // Less than two plugin means it's not worth indexing
+    if (plugins.count() < 2) {
+        removeIndex(dir);
         return true;
     }
 
@@ -244,3 +245,36 @@ QVariantMap KPluginIndexer::convert(const QString &src)
 
     return vm;
 }
+
+bool KPluginIndexer::removeIndex(const QString& dir)
+{
+    bool ok = true;
+    QFileInfo fileInfo(dir, QStringLiteral("kpluginindex.json"));
+    if (fileInfo.exists()) {
+        if (fileInfo.isWritable()) {
+            QFile f(fileInfo.absoluteFilePath());
+            if (!f.remove()) {
+                ok = false;
+                qWarning() << "Cannot remove kplugin index file: " << fileInfo.absoluteFilePath();
+            } else {
+                //qDebug() << "Deleted index: " << fileInfo.absoluteFilePath();
+            }
+        } else {
+            qWarning() << "Cannot remove kplugin index file (not writable): " << fileInfo.absoluteFilePath();
+            ok = false;
+        }
+    }
+    return ok;
+}
+
+bool KPluginIndexer::removeAllIndexFiles()
+{
+    bool ok = true;
+    Q_FOREACH (const QString &plugindir, m_pluginDirectories) {
+        if (!removeIndex(plugindir)) {
+            ok = false;
+        }
+    }
+    return ok;
+}
+
