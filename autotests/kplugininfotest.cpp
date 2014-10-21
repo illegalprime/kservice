@@ -20,6 +20,7 @@
 #include <QLocale>
 #include <QJsonDocument>
 #include <QFileInfo>
+#include <QJsonArray>
 
 #include <KAboutData>
 #include <KPluginMetaData>
@@ -49,26 +50,66 @@ private Q_SLOTS:
         QTest::addColumn<KPluginInfo>("info");
         QTest::addColumn<KPluginInfo>("infoGerman");
         QTest::addColumn<QVariant>("customValue");
+        QTest::addColumn<bool>("translationsWhenLoading");
 
 
         QString fakepluginDesktop = QFINDTESTDATA("fakeplugin.desktop");
         QVERIFY2(!fakepluginDesktop.isEmpty(), "Could not find fakeplugin.desktop");
-        // translations are performed when the object is constructed, not later
+        QString fakePluginJsonPath = QFINDTESTDATA("fakeplugin_json_new.json");
+        QVERIFY2(!fakePluginJsonPath.isEmpty(), "Could not find fakeplugin_json_new.json");
+        QString fakePluginCompatJsonPath = QFINDTESTDATA("fakeplugin_json_old.json");
+        QVERIFY2(!fakePluginCompatJsonPath.isEmpty(), "Could not find fakeplugin_json_old.json");
+
+        QJsonParseError jsonError;
+        QFile jsonFile(fakePluginJsonPath);
+        QVERIFY(jsonFile.open(QFile::ReadOnly));
+        QJsonObject json = QJsonDocument::fromJson(jsonFile.readAll(), &jsonError).object();
+        QCOMPARE(jsonError.error, QJsonParseError::NoError);
+        QVERIFY(!json.isEmpty());
+        KPluginMetaData metaData(json, fakePluginJsonPath);
+        QVERIFY(metaData.isValid());
+        QVERIFY(!metaData.name().isEmpty());
+        QVERIFY(!metaData.authors().isEmpty());
+        KPluginInfo jsonInfo(KPluginMetaData(json, "fakeplugin"));
+
+        QFile compatJsonFile(fakePluginCompatJsonPath);
+        QVERIFY(compatJsonFile.open(QFile::ReadOnly));
+        QJsonObject compatJson = QJsonDocument::fromJson(compatJsonFile.readAll(), &jsonError).object();
+        QCOMPARE(jsonError.error, QJsonParseError::NoError);
+        QVERIFY(!compatJson.isEmpty());
+
+        // for most constructors translations are performed when the object is constructed and not at runtime!
         QLocale::setDefault(QLocale::c());
         KPluginInfo info(fakepluginDesktop);
         KService::Ptr fakepluginService(new KService(fakepluginDesktop));
         KPluginInfo infoFromService(fakepluginService);
+        KPluginInfo compatJsonInfo(KPluginMetaData(compatJson, "fakeplugin"));
         QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
         KPluginInfo infoGerman(fakepluginDesktop);
         KService::Ptr fakepluginServiceGerman(new KService(fakepluginDesktop));
         KPluginInfo infoFromServiceGerman(fakepluginServiceGerman);
+        KPluginInfo compatJsonInfoGerman(KPluginMetaData(compatJson, "fakeplugin"));
         QLocale::setDefault(QLocale::c());
 
-        QTest::newRow("no custom property") << fakepluginDesktop << info << infoGerman << QVariant();
+        QVERIFY(!KPluginInfo("/this/path/does/not/exist.desktop").isValid());
+
+        QTest::newRow("from .desktop") << fakepluginDesktop << info << infoGerman << QVariant() << true;
         // when adding the custom property entryPath() cannot be copied -> expect empty string
-        QTest::newRow("with custom property") << QString() << withCustomProperty(info)
-            << withCustomProperty(infoGerman) << QVariant("Baz");
-        QTest::newRow("from KService::Ptr") << fakepluginDesktop << infoFromService << infoFromServiceGerman << QVariant();
+        QTest::newRow("from .desktop + custom property") << QString() << withCustomProperty(info)
+            << withCustomProperty(infoGerman) << QVariant("Baz") << true;
+        QTest::newRow("from KService::Ptr") << fakepluginDesktop << infoFromService
+                << infoFromServiceGerman << QVariant() << true;
+        QTest::newRow("from KService::Ptr + custom property") << QString()
+                << withCustomProperty(infoFromService) << withCustomProperty(infoFromServiceGerman)
+                << QVariant("Baz") << true;
+        QTest::newRow("from JSON file") << QString() << jsonInfo << jsonInfo << QVariant() << false;
+        QTest::newRow("from JSON file + custom property") << QString() << withCustomProperty(jsonInfo)
+                << withCustomProperty(jsonInfo) << QVariant("Baz") << false;
+        QTest::newRow("from JSON file (compatibility)") << QString() << compatJsonInfo
+                << compatJsonInfoGerman << QVariant() << true;
+        QTest::newRow("from JSON file (compatibility) + custom property") << QString()
+                << withCustomProperty(compatJsonInfo) << withCustomProperty(compatJsonInfoGerman)
+                << QVariant("Baz") << true;
     }
 
     void testLoadDesktop()
@@ -77,16 +118,30 @@ private Q_SLOTS:
         QFETCH(KPluginInfo, infoGerman);
         QFETCH(QVariant, customValue);
         QFETCH(QString, desktopFilePath);
+        QFETCH(bool, translationsWhenLoading);
 
         QVERIFY(info.isValid());
         QVERIFY(infoGerman.isValid());
-        QVERIFY(!KPluginInfo("/this/path/does/not/exist.desktop").isValid());
-
         // check the translatable keys first
-        QCOMPARE(info.comment(), QStringLiteral("Test Plugin Spy"));
-        QCOMPARE(infoGerman.comment(), QStringLiteral("Test-Spionagemodul"));
-        QCOMPARE(info.name(), QStringLiteral("NSA Plugin"));
-        QCOMPARE(infoGerman.name(), QStringLiteral("NSA-Modul"));
+        if (translationsWhenLoading) {
+            // translations are only performed once in the constructor, not when requesting them
+            QCOMPARE(info.comment(), QStringLiteral("Test Plugin Spy"));
+            QCOMPARE(infoGerman.comment(), QStringLiteral("Test-Spionagemodul"));
+            QCOMPARE(info.name(), QStringLiteral("NSA Plugin"));
+            QCOMPARE(infoGerman.name(), QStringLiteral("NSA-Modul"));
+        } else {
+            // translations work correctly here since they are not fixed at load time
+            QLocale::setDefault(QLocale::c());
+            QCOMPARE(info.name(), QStringLiteral("NSA Plugin"));
+            QCOMPARE(infoGerman.name(), QStringLiteral("NSA Plugin"));
+            QCOMPARE(info.comment(), QStringLiteral("Test Plugin Spy"));
+            QCOMPARE(infoGerman.comment(), QStringLiteral("Test Plugin Spy"));
+            QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+            QCOMPARE(info.comment(), QStringLiteral("Test-Spionagemodul"));
+            QCOMPARE(infoGerman.comment(), QStringLiteral("Test-Spionagemodul"));
+            QCOMPARE(info.name(), QStringLiteral("NSA-Modul"));
+            QCOMPARE(infoGerman.name(), QStringLiteral("NSA-Modul"));
+        }
 
         QCOMPARE(info.author(), QStringLiteral("Sebastian Kügler"));
         QCOMPARE(info.category(), QStringLiteral("Examples"));
@@ -97,7 +152,7 @@ private Q_SLOTS:
         QCOMPARE(info.isHidden(), false);
         QCOMPARE(info.isPluginEnabled(), false);
         QCOMPARE(info.isPluginEnabledByDefault(), true);
-        QCOMPARE(info.libraryPath(), QStringLiteral("fakeplugin"));
+        QCOMPARE(info.libraryPath(), QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath());
         QCOMPARE(info.license(), QStringLiteral("LGPL"));
         QCOMPARE(info.pluginName(), QStringLiteral("fakeplugin"));
         QCOMPARE(info.serviceTypes(), QStringList() << "KService/NSA");
@@ -190,10 +245,17 @@ private Q_SLOTS:
         KPluginInfo infoGerman = KPluginInfo::fromMetaData(meta);
         QLocale::setDefault(QLocale::c());
 
-        QCOMPARE(info.comment(), QStringLiteral("Test Plugin Spy"));
-        QCOMPARE(infoGerman.comment(), QStringLiteral("Test-Spionagemodul"));
+        // translations work correctly here since they are not fixed at load time
         QCOMPARE(info.name(), QStringLiteral("NSA Plugin"));
+        QCOMPARE(infoGerman.name(), QStringLiteral("NSA Plugin"));
+        QCOMPARE(info.comment(), QStringLiteral("Test Plugin Spy"));
+        QCOMPARE(infoGerman.comment(), QStringLiteral("Test Plugin Spy"));
+        QLocale::setDefault(QLocale(QLocale::German, QLocale::Germany));
+        QCOMPARE(info.comment(), QStringLiteral("Test-Spionagemodul"));
+        QCOMPARE(infoGerman.comment(), QStringLiteral("Test-Spionagemodul"));
+        QCOMPARE(info.name(), QStringLiteral("NSA-Modul"));
         QCOMPARE(infoGerman.name(), QStringLiteral("NSA-Modul"));
+        QLocale::setDefault(QLocale::c());
 
         QCOMPARE(info.author(), QStringLiteral("Sebastian Kügler"));
         QCOMPARE(info.category(), QStringLiteral("Examples"));

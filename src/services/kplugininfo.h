@@ -159,6 +159,15 @@ public:
      */
     explicit KPluginInfo(const QVariantList &args, const QString &libraryPath = QString());
 
+
+    /**
+     * Read plugin info from a KPluginMetaData object.
+     *
+     * @param md The KPluginMetaData to read the information from
+     * @since 5.2
+     */
+    explicit KPluginInfo(const KPluginMetaData &md);
+
     /**
      * Creates an invalid plugin.
      *
