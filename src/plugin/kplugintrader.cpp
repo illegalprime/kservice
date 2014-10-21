@@ -29,22 +29,13 @@
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
-
 #include <QDebug>
+#include <QJsonArray>
+
+#include <KPluginLoader>
+#include <KPluginMetaData>
 
 using namespace KTraderParse;
-
-static inline QStringList suffixFilters()
-{
-#if defined(Q_OS_WIN) || defined(Q_OS_CYGWIN)
-    return QStringList() << QStringLiteral(".dll");
-#else
-    return QStringList() << QStringLiteral("*.so")
-           << QStringLiteral("*.dylib")
-           << QStringLiteral("*.bundle")
-           << QStringLiteral("*.sl");
-#endif
-}
 
 class KPluginTraderSingleton
 {
@@ -108,6 +99,8 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     qDebug() << "Lib paths:" << libraryPaths;
     QElapsedTimer t2;
     t2.start();
+
+    /*
     Q_FOREACH (const QString &plugindir, libraryPaths) {
         const QString &_ixfile = plugindir + QStringLiteral("kpluginindex.json");
         QFile indexFile(_ixfile);
@@ -149,6 +142,22 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     KPluginInfo::List lst = KPluginInfo::fromMetaData(allMetaData);
     qDebug() << subDirectory << servicetype << constraint;
     qDebug() << "Query returned " << lst.count() << "plugins before filtering";
+    */
+    auto filter = [&](const KPluginMetaData &md) {
+        QStringList servicetypes = md.serviceTypes();
+        // compatibility with the old key names (kservice_desktop_to_json vs kcoreaddons_desktop_to_json)
+        if (servicetypes.isEmpty()) {
+            servicetypes = md.rawData().value("X-KDE-ServiceTypes").toVariant().toStringList();
+         }
+        if (servicetypes.isEmpty()) {
+            servicetypes = md.rawData().value("ServiceTypes").toVariant().toStringList();
+         }
+        return servicetypes.contains(servicetype);
+    };
+    QVector<KPluginMetaData> plugins = servicetype.isEmpty() ?
+            KPluginLoader::findPlugins(subDirectory) : KPluginLoader::findPlugins(subDirectory, filter);
+    KPluginInfo::List lst = KPluginInfo::fromMetaData(plugins);
+
     applyConstraints(lst, constraint);
     qDebug() << "Query returned " << lst.count() << "plugins after filtering";
     return lst;
