@@ -96,7 +96,6 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
 {
     QPluginLoader loader;
     QStringList libraryPaths;
-    KPluginInfo::List lst;
 
     QVector<KPluginMetaData> allMetaData;
     if (QDir::isAbsolutePath(subDirectory)) {
@@ -107,16 +106,17 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
             libraryPaths << dir + QDir::separator() + subDirectory;
         }
     }
+    qDebug() << "Lib paths:" << libraryPaths;
     QElapsedTimer t2;
     t2.start();
     Q_FOREACH (const QString &plugindir, libraryPaths) {
-        const QString &_ixfile = plugindir + QStringLiteral("/kpluginindex.json");
+        const QString &_ixfile = plugindir + QStringLiteral("kpluginindex.json");
         QFile indexFile(_ixfile);
         if (indexFile.exists()) {
             t2.start();
             indexFile.open(QIODevice::ReadOnly);
             QJsonDocument jdoc = QJsonDocument::fromBinaryData(indexFile.readAll());
-            //QJsonDocument jdoc = QJsonDocument::fromJson(indexFile.readAll());
+//             QJsonDocument jdoc = QJsonDocument::fromJson(indexFile.readAll());
             indexFile.close();
 //             qDebug() << "Reading cache :   " << t2.nsecsElapsed()/1000 << "microsec";
 //             t2.start();
@@ -128,7 +128,9 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
                 const QJsonObject &obj = QJsonValue(*iter).toObject();
                 const QString &pluginFileName = obj.value(QStringLiteral("FileName")).toString();
                 const KPluginMetaData m(obj, pluginFileName);
-                allMetaData.append(m);
+                if (servicetype.isEmpty() || m.serviceTypes().contains(servicetype)) {
+                    allMetaData.append(m);
+                }
             }
             //qDebug() << "creating KPI::List:" << t2.nsecsElapsed()/1000 << "microsec";
             qDebug() << "=== Indexed ===" << _ixfile << plugins.count() << t2.nsecsElapsed()/1000 << "microsec";
@@ -139,15 +141,26 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
                 it.next();
                 const QString _f = it.fileInfo().absoluteFilePath();
                 loader.setFileName(_f);
+                //qDebug() << "Loaded " << _f;
                 const QVariantList argsWithMetaData = QVariantList() << loader.metaData().toVariantMap();
                 KPluginInfo info(argsWithMetaData, _f);
+                if (_f.contains("autotests")) {
+                    qDebug() << _f << "added" << info.serviceTypes() << "#################";
+                }
                 if (servicetype.isEmpty() || info.serviceTypes().contains(servicetype)) {
-                    lst << info;
+                    //lst << info;
+                    //qDebug() << "Adding " << _f;
+                    allMetaData.append(KPluginMetaData(loader));
+                } else {
+                    //qDebug() << "Skipping " << _f;
                 }
             }
         }
     }
-    lst = KPluginInfo::fromMetaData(allMetaData);
+    KPluginInfo::List lst = KPluginInfo::fromMetaData(allMetaData);
+    qDebug() << subDirectory << servicetype << constraint;
+    qDebug() << "Query returned " << lst.count() << "plugins before filtering";
     applyConstraints(lst, constraint);
+    qDebug() << "Query returned " << lst.count() << "plugins after filtering";
     return lst;
 }
