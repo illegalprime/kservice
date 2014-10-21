@@ -25,6 +25,7 @@
 #include <KPluginMetaData>
 
 #include <kplugininfo.h>
+#include <kplugintrader.h>
 #include <kservice.h>
 
 Q_DECLARE_METATYPE(KPluginInfo)
@@ -235,6 +236,22 @@ private Q_SLOTS:
         QCOMPARE(convertedList[0].serviceTypes(), info.serviceTypes());
         QCOMPARE(convertedList[0].version(), info.version());
         QCOMPARE(convertedList[0].website(), info.website());
+
+        KPluginInfo::List filteredlist = convertedList;
+        QString _c = QString("[X-KDE-PluginInfo-Category] == '%1'").arg("Examples");
+        KPluginTrader::applyConstraints(filteredlist, _c);
+        QCOMPARE(filteredlist.count(), 1);
+        filteredlist = convertedList;
+
+        _c = QString("([X-KDE-PluginInfo-Category] == 'Examples') AND ([X-KDE-PluginInfo-Email] == 'sebas@kde.org')");
+        KPluginTrader::applyConstraints(filteredlist, _c);
+        QCOMPARE(filteredlist.count(), 1);
+        QCOMPARE(filteredlist[0].category(), info.category());
+        filteredlist = convertedList;
+
+        _c = QString("([X-KDE-PluginInfo-Category] == 'Examples') AND ([X-KDE-PluginInfo-Email] == 'prrrrt')");
+        KPluginTrader::applyConstraints(filteredlist, _c);
+        QCOMPARE(filteredlist.count(), 0);
     }
 };
 
