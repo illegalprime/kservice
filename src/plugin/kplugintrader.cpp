@@ -94,7 +94,6 @@ void KPluginTrader::applyConstraints(KPluginInfo::List &lst, const QString &cons
 
 KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QString &servicetype, const QString &constraint)
 {
-    QPluginLoader loader;
     QStringList libraryPaths;
 
     QVector<KPluginMetaData> allMetaData;
@@ -129,7 +128,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
                 const QString &pluginFileName = obj.value(QStringLiteral("FileName")).toString();
                 const KPluginMetaData m(obj, pluginFileName);
                 if (servicetype.isEmpty() || m.serviceTypes().contains(servicetype)) {
-                    allMetaData.append(m);
+                    allMetaData << m;
                 }
             }
             //qDebug() << "creating KPI::List:" << t2.nsecsElapsed()/1000 << "microsec";
@@ -140,19 +139,9 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
             while (it.hasNext()) {
                 it.next();
                 const QString _f = it.fileInfo().absoluteFilePath();
-                loader.setFileName(_f);
-                //qDebug() << "Loaded " << _f;
-                const QVariantList argsWithMetaData = QVariantList() << loader.metaData().toVariantMap();
-                KPluginInfo info(argsWithMetaData, _f);
-                if (_f.contains("autotests")) {
-                    qDebug() << _f << "added" << info.serviceTypes() << "#################";
-                }
-                if (servicetype.isEmpty() || info.serviceTypes().contains(servicetype)) {
-                    //lst << info;
-                    //qDebug() << "Adding " << _f;
-                    allMetaData.append(KPluginMetaData(loader));
-                } else {
-                    //qDebug() << "Skipping " << _f;
+                const KPluginMetaData md(_f);
+                if (servicetype.isEmpty() || md.serviceTypes().contains(servicetype)) {
+                    allMetaData << md;
                 }
             }
         }
