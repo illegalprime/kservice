@@ -90,20 +90,42 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     QVector<KPluginMetaData> allMetaData;
     if (QDir::isAbsolutePath(subDirectory)) {
         //qDebug() << "ABSOLUTE path: " << subDirectory;
-        libraryPaths << subDirectory;
+        if (subDirectory.endsWith('/')) {
+            libraryPaths << subDirectory;
+        } else {
+            libraryPaths << (subDirectory + QDir::separator());
+        }
     } else {
         Q_FOREACH (const QString &dir, QCoreApplication::libraryPaths()) {
-            libraryPaths << dir + QDir::separator() + subDirectory;
+            QString d = dir + QDir::separator() + subDirectory;
+            if (!d.endsWith('/')) {
+                d += QDir::separator();
+            }
+            libraryPaths << d;
         }
     }
-    qDebug() << "Lib paths:" << libraryPaths;
+    //qDebug() << "Lib paths:" << libraryPaths;
+    QElapsedTimer t1;
+    t1.start();
     QElapsedTimer t2;
     t2.start();
 
-    /*
+    auto filter = [&](const KPluginMetaData &md) {
+        QStringList servicetypes = md.serviceTypes();
+        // compatibility with the old key names (kservice_desktop_to_json vs kcoreaddons_desktop_to_json)
+        if (servicetypes.isEmpty()) {
+            servicetypes = md.rawData().value("X-KDE-ServiceTypes").toVariant().toStringList();
+        }
+        if (servicetypes.isEmpty()) {
+            servicetypes = md.rawData().value("ServiceTypes").toVariant().toStringList();
+        }
+        return servicetypes.contains(servicetype);
+    };
+
     Q_FOREACH (const QString &plugindir, libraryPaths) {
         const QString &_ixfile = plugindir + QStringLiteral("kpluginindex.json");
         QFile indexFile(_ixfile);
+        //qDebug() << "indexfile: " << _ixfile << indexFile.exists();
         if (indexFile.exists()) {
             t2.start();
             indexFile.open(QIODevice::ReadOnly);
@@ -120,14 +142,17 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
                 const QJsonObject &obj = QJsonValue(*iter).toObject();
                 const QString &pluginFileName = obj.value(QStringLiteral("FileName")).toString();
                 const KPluginMetaData m(obj, pluginFileName);
-                if (servicetype.isEmpty() || m.serviceTypes().contains(servicetype)) {
+                if (servicetype.isEmpty() || filter(m)) {
+                //if (servicetype.isEmpty() || m.serviceTypes().contains(servicetype)) {
                     allMetaData << m;
                 }
             }
             //qDebug() << "creating KPI::List:" << t2.nsecsElapsed()/1000 << "microsec";
-            qDebug() << "=== Indexed ===" << _ixfile << plugins.count() << t2.nsecsElapsed()/1000 << "microsec";
+            //qDebug() << "=== Indexed ===" << _ixfile << plugins.count() << t2.nsecsElapsed()/1000 << "microsec";
 
         } else {
+            t2.start();
+            /*
             QDirIterator it(plugindir, suffixFilters(), QDir::Files);
             while (it.hasNext()) {
                 it.next();
@@ -137,28 +162,21 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
                     allMetaData << md;
                 }
             }
+            */
+            QVector<KPluginMetaData> plugins = servicetype.isEmpty() ?
+                    KPluginLoader::findPlugins(plugindir) : KPluginLoader::findPlugins(plugindir, filter);
+            QVectorIterator<KPluginMetaData> iter(plugins);
+            while (iter.hasNext()) {
+                auto md = iter.next();
+                allMetaData << md;
+            }
+            //qDebug() << "=== Listed ===" << plugindir << plugins.count() << t2.nsecsElapsed()/1000 << "microsec";
         }
     }
-    KPluginInfo::List lst = KPluginInfo::fromMetaData(allMetaData);
-    qDebug() << subDirectory << servicetype << constraint;
-    qDebug() << "Query returned " << lst.count() << "plugins before filtering";
-    */
-    auto filter = [&](const KPluginMetaData &md) {
-        QStringList servicetypes = md.serviceTypes();
-        // compatibility with the old key names (kservice_desktop_to_json vs kcoreaddons_desktop_to_json)
-        if (servicetypes.isEmpty()) {
-            servicetypes = md.rawData().value("X-KDE-ServiceTypes").toVariant().toStringList();
-         }
-        if (servicetypes.isEmpty()) {
-            servicetypes = md.rawData().value("ServiceTypes").toVariant().toStringList();
-         }
-        return servicetypes.contains(servicetype);
-    };
-    QVector<KPluginMetaData> plugins = servicetype.isEmpty() ?
-            KPluginLoader::findPlugins(subDirectory) : KPluginLoader::findPlugins(subDirectory, filter);
-    KPluginInfo::List lst = KPluginInfo::fromMetaData(plugins);
 
+    KPluginInfo::List lst = KPluginInfo::fromMetaData(allMetaData);
+    int _before = lst.count();
     applyConstraints(lst, constraint);
-    qDebug() << "Query returned " << lst.count() << "plugins after filtering";
+    qDebug() << "Query returned " << lst.count() << "/" << _before << "plugins after filtering" << "in" << t1.nsecsElapsed() / 1000 << "microsec";
     return lst;
 }
