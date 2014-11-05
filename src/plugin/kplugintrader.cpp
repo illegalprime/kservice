@@ -90,7 +90,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     QVector<KPluginMetaData> allMetaData;
     if (QDir::isAbsolutePath(subDirectory)) {
         //qDebug() << "ABSOLUTE path: " << subDirectory;
-        if (subDirectory.endsWith('/')) {
+        if (subDirectory.endsWith(QDir::separator())) {
             libraryPaths << subDirectory;
         } else {
             libraryPaths << (subDirectory + QDir::separator());
@@ -98,13 +98,13 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     } else {
         Q_FOREACH (const QString &dir, QCoreApplication::libraryPaths()) {
             QString d = dir + QDir::separator() + subDirectory;
-            if (!d.endsWith('/')) {
+            if (!d.endsWith(QDir::separator())) {
                 d += QDir::separator();
             }
             libraryPaths << d;
         }
     }
-    //qDebug() << "Lib paths:" << libraryPaths;
+    qDebug() << "Lib paths:" << libraryPaths;
     QElapsedTimer t1;
     t1.start();
     QElapsedTimer t2;
