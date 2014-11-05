@@ -22,12 +22,15 @@
 #include <QFileInfo>
 #include <QJsonArray>
 
-#include <KAboutData>
+//#include <KAboutData>
 #include <KPluginMetaData>
 
 #include <kplugininfo.h>
 #include <kplugintrader.h>
 #include <kservice.h>
+
+#include <kservicetypetrader.h>
+#include <QDebug>
 
 Q_DECLARE_METATYPE(KPluginInfo)
 
@@ -46,7 +49,7 @@ private Q_SLOTS:
         QString _c = "";
         QTest::newRow("no constraints") << _st << _c << 1;
 
-        return;
+//        return;
         _c = QString("[X-KDE-PluginInfo-Name] == '%1'").arg("fakeplugin");
         QTest::newRow("by pluginname") << _st << _c << 1;
 
@@ -67,6 +70,16 @@ private Q_SLOTS:
         QFETCH(int, expectedResult);
         const KPluginInfo::List res = KPluginTrader::self()->query(QString(), serviceType, constraint);
         QCOMPARE(res.count(), expectedResult);
+        QElapsedTimer t;
+        t.start();
+        KService::List offers = KServiceTypeTrader::self()->query(serviceType, constraint);
+        qDebug() << "KServiceTypeTrader::query() took " << (t.nsecsElapsed() / 1000);
+    }
+
+    void findService()
+    {
+
+
     }
 };
 
