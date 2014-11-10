@@ -55,7 +55,8 @@ static inline QStringList suffixFilters()
     return QStringList() << QStringLiteral("*.so")
            << QStringLiteral("*.dylib")
            << QStringLiteral("*.bundle")
-           << QStringLiteral("*.sl");
+           << QStringLiteral("*.sl")
+           << QStringLiteral("*.desktop");
 #endif
 }
 
@@ -159,7 +160,7 @@ bool KPluginIndexer::convertAll()
     Q_FOREACH (const QString &plugindir, m_pluginDirectories) {
         removeIndex(plugindir);
         convertDirectory(plugindir, QStringLiteral("kpluginindex.json"));
-//         qDebug() << "Converted " << plugindir << "";
+        //qDebug() << "Converted " << plugindir << "";
     }
     return ok;
 }
@@ -178,15 +179,21 @@ bool KPluginIndexer::convertDirectory(const QString& dir, const QString& dest)
 
     int i = 0;
     QPluginLoader loader;
-    QDirIterator it(dir, suffixFilters(), QDir::Files, QDirIterator::NoIteratorFlags);
+    QDirIterator it(dir, suffixFilters(), QDir::Files, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         it.next();
         const QString _f = it.fileInfo().absoluteFilePath();
+
         loader.setFileName(_f);
-        const KPluginMetaData &md(loader);
         QJsonObject obj;
         obj["FileName"] = _f;
-        obj["KPlugin"] = md.rawData();
+
+        if (_f.endsWith(".desktop")) {
+            obj["KPlugin"] = QJsonObject::fromVariantMap(convert(_f));
+        } else {
+            const KPluginMetaData &md(loader);
+            obj["KPlugin"] = md.rawData();
+        }
         plugins.insert(i, obj);
         i++;
     }
