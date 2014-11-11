@@ -110,7 +110,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     QElapsedTimer t2;
     t2.start();
 
-    auto filter = [&](const KPluginMetaData &md) {
+    auto filter = [&](const KPluginMetaData &md) -> bool {
         QStringList servicetypes = md.serviceTypes();
         // compatibility with the old key names (kservice_desktop_to_json vs kcoreaddons_desktop_to_json)
         if (servicetypes.isEmpty()) {
