@@ -91,23 +91,23 @@ private Q_SLOTS:
         KPluginInfo compatJsonInfoGerman(KPluginMetaData(compatJson, "fakeplugin"));
         QLocale::setDefault(QLocale::c());
 
+        QTest::ignoreMessage(QtWarningMsg, "\"/this/path/does/not/exist.desktop\" has no desktop group, cannot construct a KPluginInfo object from it.");
         QVERIFY(!KPluginInfo("/this/path/does/not/exist.desktop").isValid());
 
         QTest::newRow("from .desktop") << fakepluginDesktop << info << infoGerman << QVariant() << true;
-        // when adding the custom property entryPath() cannot be copied -> expect empty string
-        QTest::newRow("from .desktop + custom property") << QString() << withCustomProperty(info)
+        QTest::newRow("with custom property") << QFileInfo(info.libraryPath()).absoluteFilePath() << withCustomProperty(info)
             << withCustomProperty(infoGerman) << QVariant("Baz") << true;
         QTest::newRow("from KService::Ptr") << fakepluginDesktop << infoFromService
                 << infoFromServiceGerman << QVariant() << true;
-        QTest::newRow("from KService::Ptr + custom property") << QString()
+        QTest::newRow("from KService::Ptr + custom property") << QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath()
                 << withCustomProperty(infoFromService) << withCustomProperty(infoFromServiceGerman)
                 << QVariant("Baz") << true;
-        QTest::newRow("from JSON file") << QString() << jsonInfo << jsonInfo << QVariant() << false;
-        QTest::newRow("from JSON file + custom property") << QString() << withCustomProperty(jsonInfo)
-                << withCustomProperty(jsonInfo) << QVariant("Baz") << false;
-        QTest::newRow("from JSON file (compatibility)") << QString() << compatJsonInfo
-                << compatJsonInfoGerman << QVariant() << true;
-        QTest::newRow("from JSON file (compatibility) + custom property") << QString()
+        QTest::newRow("from JSON file") << QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath() << jsonInfo << jsonInfo << QVariant() << false;
+        QTest::newRow("from JSON file + custom property") << QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath()
+                << withCustomProperty(jsonInfo) << withCustomProperty(jsonInfo) << QVariant("Baz") << false;
+        QTest::newRow("from JSON file (compatibility)") << QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath()
+                << compatJsonInfo << compatJsonInfoGerman << QVariant() << true;
+        QTest::newRow("from JSON file (compatibility) + custom property") << QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath()
                 << withCustomProperty(compatJsonInfo) << withCustomProperty(compatJsonInfoGerman)
                 << QVariant("Baz") << true;
     }
@@ -261,7 +261,7 @@ private Q_SLOTS:
         QCOMPARE(info.category(), QStringLiteral("Examples"));
         QCOMPARE(info.dependencies(), QStringList());
         QCOMPARE(info.email(), QStringLiteral("sebas@kde.org"));
-        QCOMPARE(info.entryPath(), QString());
+        QCOMPARE(info.entryPath(), QFileInfo(QStringLiteral("fakeplugin")).absoluteFilePath());
         QCOMPARE(info.icon(), QStringLiteral("preferences-system-time"));
         QCOMPARE(info.isHidden(), false);
         QCOMPARE(info.isPluginEnabled(), false);

@@ -152,17 +152,6 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
 
         } else {
             t2.start();
-            /*
-            QDirIterator it(plugindir, suffixFilters(), QDir::Files);
-            while (it.hasNext()) {
-                it.next();
-                const QString _f = it.fileInfo().absoluteFilePath();
-                const KPluginMetaData md(_f);
-                if (servicetype.isEmpty() || md.serviceTypes().contains(servicetype)) {
-                    allMetaData << md;
-                }
-            }
-            */
             QVector<KPluginMetaData> plugins = servicetype.isEmpty() ?
                     KPluginLoader::findPlugins(plugindir) : KPluginLoader::findPlugins(plugindir, filter);
             QVectorIterator<KPluginMetaData> iter(plugins);
