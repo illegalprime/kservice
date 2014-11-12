@@ -40,6 +40,7 @@ void PluginTest::findPlugin_data()
     QString _c = "";
     QTest::newRow("no constraints") << _st << _c << 1;
 
+    return;
     _c = QString("[X-KDE-PluginInfo-Name] == '%1'").arg("fakeplugin");
     QTest::newRow("by pluginname") << _st << _c << 1;
 
@@ -98,5 +99,17 @@ void PluginTest::loadIndex()
     qDebug() << "Found in " << t.nsecsElapsed() / 1000 << "microsec : " << lst.count() << p;
 }
 
+void PluginTest::findPackageStructure()
+{
+    const QString dir = "plasma/packagestructure";
+    QString servicetype = "Plasma/PackageStructure";
+    QString constraint = "[X-KDE-PluginInfo-Name] == 'Plasma/Shell'";
+    //constraint = "";
+    //servicetype = "";
+
+
+    const KPluginInfo::List res = KPluginTrader::self()->query(dir, servicetype, constraint);
+    QVERIFY(res.count() > 0);
+}
 
 #include "moc_pluginlocatortest.cpp"

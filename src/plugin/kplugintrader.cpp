@@ -37,6 +37,18 @@
 
 using namespace KTraderParse;
 
+static inline QStringList suffixFilters()
+{
+#if defined(Q_OS_WIN) || defined(Q_OS_CYGWIN)
+    return QStringList() << QStringLiteral(".dll");
+#else
+    return QStringList() << QStringLiteral("*.so")
+           << QStringLiteral("*.dylib")
+           << QStringLiteral("*.bundle")
+           << QStringLiteral("*.sl");
+#endif
+}
+
 class KPluginTraderSingleton
 {
 public:
@@ -85,6 +97,9 @@ void KPluginTrader::applyConstraints(KPluginInfo::List &lst, const QString &cons
 
 KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QString &servicetype, const QString &constraint)
 {
+    bool ps = (servicetype == "Plasma/PackageStructure");
+    if (ps) qDebug() << "dir: " << subDirectory << "servicetype" << servicetype << "constraint: " << constraint;
+
     QStringList libraryPaths;
 
     QVector<KPluginMetaData> allMetaData;
@@ -104,13 +119,16 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
             libraryPaths << d;
         }
     }
-    qDebug() << "Lib paths:" << libraryPaths;
+    //qDebug() << "Lib paths:" << libraryPaths;
     QElapsedTimer t1;
     t1.start();
     QElapsedTimer t2;
     t2.start();
 
-    auto filter = [&](const KPluginMetaData &md) {
+    auto filter = [&](const KPluginMetaData &md) -> bool {
+        if (servicetype.isEmpty()) {
+            return true;
+        }
         QStringList servicetypes = md.serviceTypes();
         // compatibility with the old key names (kservice_desktop_to_json vs kcoreaddons_desktop_to_json)
         if (servicetypes.isEmpty()) {
@@ -121,6 +139,8 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
         }
         return servicetypes.contains(servicetype);
     };
+
+    QPluginLoader loader;
 
     Q_FOREACH (const QString &plugindir, libraryPaths) {
         const QString &_ixfile = plugindir + QStringLiteral("kpluginindex.json");
@@ -142,7 +162,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
                 const QJsonObject &obj = QJsonValue(*iter).toObject();
                 const QString &pluginFileName = obj.value(QStringLiteral("FileName")).toString();
                 const KPluginMetaData m(obj, pluginFileName);
-                if (servicetype.isEmpty() || filter(m)) {
+                if (m.isValid() && filter(m)) {
                 //if (servicetype.isEmpty() || m.serviceTypes().contains(servicetype)) {
                     allMetaData << m;
                 }
@@ -152,12 +172,23 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
 
         } else {
             t2.start();
-            QVector<KPluginMetaData> plugins = servicetype.isEmpty() ?
-                    KPluginLoader::findPlugins(plugindir) : KPluginLoader::findPlugins(plugindir, filter);
-            QVectorIterator<KPluginMetaData> iter(plugins);
-            while (iter.hasNext()) {
-                auto md = iter.next();
-                allMetaData << md;
+//             QVector<KPluginMetaData> plugins = servicetype.isEmpty() ?
+//                     KPluginLoader::findPlugins(plugindir) : KPluginLoader::findPlugins(plugindir, filter);
+//             QVectorIterator<KPluginMetaData> iter(plugins);
+//             while (iter.hasNext()) {
+//                 auto md = iter.next();
+//                 allMetaData << md;
+//             }
+            QDirIterator it(plugindir, suffixFilters(), QDir::Files);
+            while (it.hasNext()) {
+                it.next();
+                const QString _f = it.fileInfo().absoluteFilePath();
+                loader.setFileName(_f);
+
+                KPluginMetaData md(loader);
+                if (md.isValid() && filter(md)) {
+                    allMetaData << md;
+                }
             }
             //qDebug() << "=== Listed ===" << plugindir << plugins.count() << t2.nsecsElapsed()/1000 << "microsec";
         }
@@ -166,6 +197,7 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     KPluginInfo::List lst = KPluginInfo::fromMetaData(allMetaData);
     int _before = lst.count();
     applyConstraints(lst, constraint);
-    qDebug() << "Query returned " << lst.count() << "/" << _before << "plugins after filtering" << "in" << t1.nsecsElapsed() / 1000 << "microsec";
+    qDebug() << "Query for " << servicetype << " returned " << lst.count() << "/" << _before << "plugins after filtering" << "in" << t1.nsecsElapsed() / 1000 << "microsec";
     return lst;
 }
+
