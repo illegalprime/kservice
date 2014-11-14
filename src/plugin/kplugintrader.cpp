@@ -105,16 +105,16 @@ KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QStrin
     QVector<KPluginMetaData> allMetaData;
     if (QDir::isAbsolutePath(subDirectory)) {
         //qDebug() << "ABSOLUTE path: " << subDirectory;
-        if (subDirectory.endsWith(QDir::separator())) {
+        if (subDirectory.endsWith(QLatin1Char('/'))) {
             libraryPaths << subDirectory;
         } else {
-            libraryPaths << (subDirectory + QDir::separator());
+            libraryPaths << (subDirectory + QLatin1Char('/'));
         }
     } else {
         Q_FOREACH (const QString &dir, QCoreApplication::libraryPaths()) {
-            QString d = dir + QDir::separator() + subDirectory;
-            if (!d.endsWith(QDir::separator())) {
-                d += QDir::separator();
+            QString d = dir + QLatin1Char('/') + subDirectory;
+            if (!d.endsWith(QLatin1Char('/'))) {
+                d += QLatin1Char('/');
             }
             libraryPaths << d;
         }
