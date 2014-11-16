@@ -95,27 +95,24 @@ void KPluginTrader::applyConstraints(KPluginInfo::List &lst, const QString &cons
     }
 }
 
-KPluginInfo::List KPluginTrader::query(const QString &subDirectory, const QString &servicetype, const QString &constraint)
+KPluginInfo::List KPluginTrader::query(const QString &_subDirectory, const QString &servicetype, const QString &constraint)
 {
     bool ps = (servicetype == "Plasma/PackageStructure");
-    if (ps) qDebug() << "dir: " << subDirectory << "servicetype" << servicetype << "constraint: " << constraint;
+    if (ps) qDebug() << "dir: " << _subDirectory << "servicetype" << servicetype << "constraint: " << constraint;
 
     QStringList libraryPaths;
 
     QVector<KPluginMetaData> allMetaData;
+    QString subDirectory = _subDirectory;
+    if (!subDirectory.endsWith(QLatin1Char('/'))) {
+        subDirectory += QLatin1Char('/');
+    }
     if (QDir::isAbsolutePath(subDirectory)) {
         //qDebug() << "ABSOLUTE path: " << subDirectory;
-        if (subDirectory.endsWith(QLatin1Char('/'))) {
-            libraryPaths << subDirectory;
-        } else {
-            libraryPaths << (subDirectory + QLatin1Char('/'));
-        }
+        libraryPaths << subDirectory;
     } else {
         Q_FOREACH (const QString &dir, QCoreApplication::libraryPaths()) {
             QString d = dir + QLatin1Char('/') + subDirectory;
-            if (!d.endsWith(QLatin1Char('/'))) {
-                d += QLatin1Char('/');
-            }
             libraryPaths << d;
         }
     }
