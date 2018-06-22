@@ -423,6 +423,34 @@ bool ParseTreeMATCH::eval(ParseContext *_context) const
     return true;
 }
 
+bool ParseTreeSubsequenceMATCH::eval(ParseContext *_context) const
+{
+  _context->type = ParseContext::T_BOOL;
+
+  ParseContext c1(_context);
+  ParseContext c2(_context);
+  if (!m_pLeft->eval(&c1)) {
+    return false;
+  }
+  if (!m_pRight->eval(&c2)) {
+    return false;
+  }
+  if (c1.type != ParseContext::T_STRING || c2.type != ParseContext::T_STRING) {
+    return false;
+  }
+  bool chk_case = m_cs == Qt::CaseSensitive;
+
+  QString::Iterator i = c2.str.begin(), j = c1.str.begin();
+  for (; i != c2.str.end() && j < c1.str.end(); ++i) {
+    if ((chk_case && *i == *j) || (!chk_case && i->toLower() == j->toLower())) {
+      ++j;
+    }
+  }
+  _context->b = j == c1.str.end();
+
+  return true;
+}
+
 bool ParseTreeIN::eval(ParseContext *_context) const
 {
     _context->type = ParseContext::T_BOOL;

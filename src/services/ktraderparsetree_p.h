@@ -222,6 +222,27 @@ protected:
 };
 
 /**
+  * @internal
+  */
+class ParseTreeSubsequenceMATCH : public ParseTreeBase
+{
+public:
+  ParseTreeSubsequenceMATCH(ParseTreeBase *_ptr1, ParseTreeBase *_ptr2, Qt::CaseSensitivity cs)
+  {
+    m_pLeft = _ptr1;
+    m_pRight = _ptr2;
+    m_cs = cs;
+  }
+
+  bool eval(ParseContext *_context) const override;
+
+protected:
+  ParseTreeBase::Ptr m_pLeft;
+  ParseTreeBase::Ptr m_pRight;
+  Qt::CaseSensitivity m_cs;
+};
+
+/**
  * @internal
  */
 class ParseTreeCALC : public ParseTreeBase
